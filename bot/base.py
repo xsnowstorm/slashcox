@@ -146,3 +146,19 @@ class BaseCommand:
 
     def check_permissions(self, interaction) -> bool:
         return True
+
+class BaseTask:
+    interval: float = 0
+
+    def __init__(self, client: Client, manager: TaskManager, db) -> None:
+        self.bot = client
+        self.manager = manager
+        self.db = db
+
+        if self.interval == 0:
+            raise ValueError("Interval must not be 0")
+
+    @abstractmethod
+    async def execute(self):
+        raise ValueError("Execute method is required")
+
