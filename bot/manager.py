@@ -27,13 +27,14 @@ TODO Add a command manager
 TODO Add a task manager
 """
 
-__all__ = ["BaseManager", "EventManager", "CommandManager"]
+__all__ = ["BaseManager", "EventManager", "CommandManager", "TaskManager"]
 
 import os
 from abc import abstractmethod
 from typing import TYPE_CHECKING, List
 
 import discord
+from discord.ext import tasks
 
 from .config import Config
 
@@ -54,9 +55,10 @@ class BaseManager:
     load_module and register_all are described above.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, db) -> None:
         """Initialize by creating an empty dictionary."""
         self.modules = {}
+        self.db = db
 
     def load_all(self, directory: List[str]) -> None:
         """Load all the files in a directory.
@@ -145,10 +147,6 @@ class EventManager(BaseManager):
     It needs to have a name attribute and an execute method.
     """
 
-    def __init__(self, db) -> None:
-        self.modules = {}
-        self.db = db
-
     def load_module(self, path: str):
         event = __import__(path, globals(), locals(), ["Event"], 0).Event
         return event
@@ -167,10 +165,9 @@ class CommandManager(BaseManager):
 
     def __init__(self, tree, db) -> None:
         """Initialize by creating an empty dictionary."""
-        self.modules = {}
+        super().__init__()
         self.tree = tree
-        self.db = db
-
+        
     def load_module(self, path: str):
         command = __import__(path, globals(), locals(), ["cmd"], 0).cmd
         return command
@@ -180,3 +177,14 @@ class CommandManager(BaseManager):
             command = obj(client, self, self.db)
             self.tree.register(command)
         await self.tree.sync(guild=discord.Object(id=Config.server_id))
+
+class TaskManager(BaseManager):
+    def load_module(self, path: str):
+        task = __import__(path, globals(), locals(), ["Task"], 0).Task
+        return task
+
+    async def register_all(self, client: "ClientType"):
+        for obj in self.modules.values():
+            task = obj(client, self, self.db)
+            tasks.loop(seconds=task.interval)(task.execute())
+
